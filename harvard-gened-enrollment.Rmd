@@ -1,0 +1,156 @@
+---
+title: "Harvard General Education Enrollment"
+author: "Jennifer Li"
+date: "4/7/2019"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+# loading the necessary packages required to create my graph
+
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(janitor)
+library(gt)
+library(fs)
+library(ggplot2)
+
+# downloads Spring 2019 course enrollment data from the Harvard Registrar and saves it locally
+
+download.file(url = "https://registrar.fas.harvard.edu/files/fas-registrar/files/class_enrollment_summary_by_term_2.28.19.xlsx", destfile = "enrollment_2019.xsls", mode = "wb")
+
+# downloads Spring 2018 course enrollment data from the Harvard Registrar and saves it locally
+
+download.file(url = "https://registrar.fas.harvard.edu/files/fas-registrar/files/class_enrollment_summary_by_term_03.06.18.xlsx", destfile = "enrollment_2018.xsls", mode = "wb")
+  
+# reads data from Spring 2019 file into R
+
+x_2019 <-
+  
+  # skip the first 3 rows because they are redundant
+  
+  read_excel("enrollment_2019.xsls", skip = 3) %>%
+  
+  # makes column names easier to work with
+  
+  clean_names()
+  
+# reads data from Spring 2018 file into R 
+
+x_2018 <-
+  
+  # like above, skip the first 3 rows because they are redundant
+  
+  read_excel("enrollment_2018.xsls", skip = 3) %>%
+  
+  # makes column names easier to work with
+  
+  clean_names()
+```
+
+```{r plot, echo = FALSE}
+  # reads in Spring 2019 course enrollment file and stores it as u_grad_2019 for future use
+  u_grad_2019 <- x_2019 %>%
+  
+    # ensures that the classes are for undergraduate enrollment only
+  
+    filter(!is.na(u_grad)) %>% 
+  
+    # subsetting data for General Education classes 
+  
+    filter(course_department == "General Education") %>%
+  
+    # selecting the columns we need
+  
+    select(course_name, u_grad)
+  
+  # reads in Spring 2018 course enrollment file and stores it as u_grad_2018 for future use
+
+  u_grad_2018 <- x_2018 %>%
+    
+      # ensures that the classes are for undergraduate enrollment only
+    
+      filter(!is.na(u_grad)) %>% 
+    
+      # subsetting data for General Education classes 
+    
+      filter(course_department == "General Education") %>%
+    
+      # selecting the columns we need
+    
+      select(course_name, u_grad)
+  
+# vertically joins the two new dataframes to create a single dataframe
+  
+combined <- inner_join(u_grad_2019, u_grad_2018, by = "course_name", suffix = c(".2019", ".2018"))
+
+gened_change <- combined %>%
+  
+  # creates a column that calculates General Education course enrollment change
+  
+  mutate(change = (u_grad.2018 - u_grad.2019)/u_grad.2018) %>%
+  
+  # removing unnecessary columns 
+  
+  select(-u_grad.2018, - u_grad.2019) %>%
+  
+  # rearranges the dataframe by total change in enrollment in descending order
+  
+  arrange(desc(change))
+
+# calling the transformed data to make the plot 
+
+gened_change %>%
+  
+    # sets up my plot for the General Education course enrollment changes between Spring 2018 and Spring 2019
+  
+    ggplot(aes(x = reorder(course_name, change), y = change, fill = change)) +
+  
+    # creates the bar graph and hides the legend
+  
+    geom_col(show.legend = FALSE) +
+  
+     # using a different color scheme other than the default 
+  
+    scale_fill_gradient2(midpoint = 0, mid = "white", high = "steelblue", low = "red") +
+  
+    # scales look better on a dark background and help make comparisons easy
+  
+    theme_dark() + 
+  
+    # bolds the title of the graph to make it look nice
+  
+    theme(plot.title = element_text(face = "bold")) +
+  
+    # flips the x-axis and y-axis so that the bar graph is more readable
+  
+    coord_flip()  + 
+  
+    # turns decimal values on the x-axis into percents
+  
+    scale_y_continuous(labels = scales::percent) +
+  
+     # adds x-axis label
+  
+    labs(x = "Course Name",
+         
+        # adds y-axis label
+    
+         y = "Percent Change in Undergraduate Enrollment",
+    
+       # adds title to graph
+    
+         title = "General Education Course Enrollment Change",
+    
+       # adds subtitle to graph
+    
+         subtitle = "Between Spring 2018 and Spring 2019",
+    
+       # important to give source credit and use a line break to provide clarifying information
+    
+          caption = "Source: Harvard Registrar \n All courses shown were taught in both Spring 2018 and Spring 2019")
+
+
+# graph inspired by my colleague, Seeam Noor! 
+```
